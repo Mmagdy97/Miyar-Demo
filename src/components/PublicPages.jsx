@@ -1,0 +1,151 @@
+import { waLink } from "../lib/nudge";
+import { useState } from "react";
+import { localize } from "../data/dataI18n";
+import { Check, ArrowRight } from "lucide-react";
+import { formatMoney } from "../lib/currency";
+import { useI18n, intlLocale } from "../i18n";
+
+import { PRICES, PLANS, CYCLES, planPrice } from "../lib/pricing";
+
+export function PricingSection({ onStart }) {
+  const { t, currency } = useI18n();
+  const [cur, setCur] = useState(PRICES[currency] ? currency : "EGP");
+  const [months, setMonths] = useState(1);
+  const pill = (on) => `px-4 py-2 rounded-lg text-xs font-bold cursor-pointer transition-colors ${on ? "bg-[#2E6F73] text-white" : "text-[#4A5757] hover:bg-[#EFE9DC]"}`;
+  return (
+    <section id="pricing" className="py-20 px-4 sm:px-6 max-w-7xl mx-auto w-full">
+      <div className="text-center max-w-3xl mx-auto mb-10">
+        <h2 className="font-display text-3xl sm:text-[2.4rem] font-semibold text-[#0E1A1B] mb-3">{t("pricing.title")}</h2>
+        <p className="text-[#4A5757] mb-6">{t("pricing.sub")}</p>
+        <div className="flex flex-wrap justify-center gap-3">
+          <div role="group" aria-label={t("settings.currency")} className="inline-flex flex-wrap gap-1 p-1 rounded-xl bg-white border border-[#E4DDCE]">
+            {Object.keys(PRICES).map((k) => (
+              <button key={k} onClick={() => setCur(k)} aria-pressed={cur === k} className={pill(cur === k)}>
+                <span className="sm:hidden">{k}</span><span className="hidden sm:inline">{(() => { try { return new Intl.DisplayNames(intlLocale(), { type: "currency" }).of(k); } catch { return k; } })()}</span>
+              </button>
+            ))}
+          </div>
+          <div role="group" aria-label={t("pricing.billing")} className="inline-flex flex-wrap gap-1 p-1 rounded-xl bg-white border border-[#E4DDCE]">
+            {CYCLES.map((c) => (
+              <button key={c.months} onClick={() => setMonths(c.months)} aria-pressed={months === c.months} className={pill(months === c.months)}>
+                {t(`pricing.cycle.${c.months}`)}
+                {c.save > 0 && <span className={`ms-1.5 ${months === c.months ? "text-[#FDBA74]" : "text-[#2E6F73]"}`}>· {c.months === 12 ? t("pricing.save12") : t("pricing.save", { n: c.save })}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-5">
+        {PLANS.map((p, i) => {
+          const price = planPrice(cur, i, months);
+          return (
+            <div
+              key={p.key}
+              className={`relative rounded-2xl p-6 flex flex-col border ${
+                p.highlight ? "bg-white border-[var(--brass)] ring-1 ring-[var(--brass)] shadow-[var(--shadow-2)] xl:-translate-y-2" : "bg-white border-[#E4DDCE]"
+              }`}
+            >
+              {p.highlight && <span className="absolute -top-3 start-6 text-[11px] font-bold px-2.5 py-1 rounded-md bg-[var(--peach)] text-[var(--on-peach)]">{t("pricing.popular")}</span>}
+              <h3 className={`font-display text-xl font-semibold text-[#0E1A1B]`}>{t(`plan.${p.key}`)}</h3>
+              <p className={`text-xs mb-4 text-[#4A5757]`}>{t(`plan.${p.key}.tag`)}</p>
+              <p className="mb-5">
+                {p.custom ? (
+                  <span className={`font-display text-3xl font-semibold text-[#0E1A1B]`}>{t("pricing.custom")}</span>
+                ) : (
+                  <>
+                    <span className={`font-display text-3xl font-semibold tabular-nums text-[#0E1A1B]`}>{formatMoney(price, cur, intlLocale(), { compact: true })}</span>{" "}
+                    {price > 0 && <span className={`text-sm font-semibold text-[#4A5757]`}>{t(`pricing.per.${months}`)}</span>}
+                    {months > 1 && price > 0 && <span className="block mt-1 text-xs text-[#64706F] tabular-nums">{t("pricing.eq", { p: formatMoney(Math.round(price / months), cur, intlLocale(), { compact: true }) })}</span>}
+                  </>
+                )}
+              </p>
+              <ul className="space-y-2.5 mb-6 flex-1">
+                {Array.from({ length: p.n }, (_, k) => t(`plan.${p.key}.f${k + 1}`)).map((f) => (
+                  <li key={f} className={`flex items-start gap-2 text-sm text-[#0E1A1B]`}>
+                    <Check className={`w-4 h-4 mt-0.5 shrink-0 text-[#2E6F73]`} /> {f}
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={p.custom ? () => window.open(waLink(t("nudge.msgEnterprise")), "_blank", "noopener") : onStart}
+                className={`w-full py-3 rounded-xl font-semibold text-sm cursor-pointer transition-colors ${
+                  "bg-[#2E6F73] text-white hover:bg-[#245A5E]"
+                }`}
+              >
+                {i === 0 ? t("pricing.startFree") : p.custom ? t("pricing.contact") : t("pricing.try")}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-6 rounded-2xl border border-[#2E6F73]/30 bg-[#2E6F73]/5 p-4 text-center">
+        <p className="text-sm font-bold text-[#0E1A1B]">{t("pricing.founding")}</p>
+        <p className="text-xs text-[#4A5757] mt-1">{t("pricing.trial")}</p>
+      </div>
+      <div className="mt-6 rounded-[28px] border border-[#E4DDCE] bg-white p-5 sm:p-7 text-start">
+        <h3 className="font-display text-xl sm:text-2xl font-semibold">{t("addons.t")}</h3>
+        <p className="mt-1 text-sm text-[#4A5757]">{t("addons.d")}</p>
+        <ul className="mt-4 grid sm:grid-cols-2 gap-3">
+          {["theme", "app", "project", "struct"].map((k) => (
+            <li key={k} className="rounded-2xl bg-[#F6F3EC] p-4">
+              <p className="text-sm font-semibold">{t(`addons.${k}.t`)}</p>
+              <p className="mt-1 text-xs leading-relaxed text-[#4A5757]">{t(`addons.${k}.d`)}</p>
+            </li>
+          ))}
+        </ul>
+        <button onClick={() => window.open(waLink(t("addons.msg")), "_blank", "noopener")} className="btn-press mt-5 h-11 px-6 rounded-full lp-pill-dark text-sm font-semibold">{t("addons.cta")}</button>
+      </div>
+      <p className="text-center text-xs text-[#4A5757] mt-4">{t("pricing.note")}</p>
+    </section>
+  );
+}
+
+const LEGAL = localize({
+  privacy: {
+    title: "سياسة الخصوصية",
+    sections: [
+      ["البيانات التي نجمعها", "بيانات الحساب (الاسم والبريد الإلكتروني والدور الوظيفي)، وبيانات المشاريع التي يدخلها مكتبك (عملاء، مقايسات، مصروفات، صور وملفات)، وبيانات استخدام تقنية لتحسين الخدمة."],
+      ["كيف نستخدمها", "لتشغيل المنصة وعرض بيانات كل مكتب لأعضائه فقط، ولتقديم الدعم، ولتحسين الأداء. لا نبيع بياناتك لأي طرف ثالث."],
+      ["فصل بيانات المكاتب", "بيانات كل مكتب معزولة عن غيره، ولا يطلع عليها إلا المستخدمون الذين يضيفهم مدير المكتب، وفق صلاحيات أدوارهم."],
+      ["الاحتفاظ والحذف", "نحتفظ بالبيانات طوال فترة الاشتراك. يمكنك طلب تصدير بياناتك أو حذفها نهائياً في أي وقت."],
+      ["مزودو الخدمة", "نستعين بمزودي استضافة وقواعد بيانات ومعالجة مدفوعات يلتزمون بمعايير حماية مناسبة. قد تُعالج البيانات خارج بلدك."],
+      ["حقوقك", "لك حق الاطلاع على بياناتك وتصحيحها وتصديرها وحذفها، وفق قوانين حماية البيانات المطبقة في بلدك (مثل نظام حماية البيانات الشخصية في السعودية وقانون KVKK في تركيا وقانون حماية البيانات الشخصية في مصر)."],
+      ["التواصل", "لأي طلب يخص خصوصيتك: [أضف بريد الدعم هنا]."],
+    ],
+  },
+  terms: {
+    title: "شروط الاستخدام",
+    sections: [
+      ["قبول الشروط", "باستخدامك منصة معيار فإنك توافق على هذه الشروط. إن كنت تستخدمها نيابة عن مكتب أو شركة فأنت تقرّ بأنك مخوّل بذلك."],
+      ["الحساب والمسؤولية", "أنت مسؤول عن سرية بيانات الدخول وعن كل نشاط يتم من حسابك، وعن صحة البيانات التي يدخلها فريقك."],
+      ["الاستخدام المقبول", "يُمنع استخدام المنصة لأي نشاط مخالف للقانون، أو محاولة اختراقها أو تعطيلها، أو رفع محتوى ينتهك حقوق الآخرين."],
+      ["الاشتراكات والدفع", "تُحدَّد الأسعار والحدود في صفحة الأسعار، وتُجدَّد الاشتراكات المدفوعة تلقائياً حتى الإلغاء. يمكن الإلغاء في أي وقت ويسري عند نهاية الفترة المدفوعة."],
+      ["ملكية البيانات", "بياناتك ومشاريعك ملك لك. نمنحك ترخيصاً محدوداً لاستخدام المنصة، ونحتفظ بحقوق الملكية الفكرية للبرنامج."],
+      ["إخلاء المسؤولية", "تُقدَّم المنصة كما هي. الحسابات والمقايسات والمستخلصات الناتجة عنها أدوات مساعدة، والمراجعة المهنية والمالية النهائية مسؤولية المكتب."],
+      ["التعديل والقانون الواجب", "قد نحدّث هذه الشروط مع إشعارك بالتغييرات الجوهرية. يُحدَّد القانون الواجب التطبيق والجهة القضائية وفق بلد تسجيل الشركة المشغّلة: [يُستكمل قبل الإطلاق]."],
+    ],
+  },
+});
+
+export function LegalPage({ kind, onBack }) {
+  const doc = LEGAL[kind];
+  return (
+    <main className="min-h-screen bg-[#F6F3EC] py-12 px-4 sm:px-6">
+      <article className="max-w-3xl mx-auto bg-white border border-[#E4DDCE] rounded-2xl p-6 sm:p-10">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-[#4A5757] hover:text-[#0E1A1B] mb-6 cursor-pointer">
+          <ArrowRight className="w-4 h-4 ltr:-scale-x-100 rtl:scale-x-100" /> العودة للصفحة الرئيسية
+        </button>
+        <h1 className="text-3xl font-semibold text-[#0E1A1B] mb-2">{doc.title}</h1>
+        <p className="text-xs text-[#4A5757] mb-8">آخر تحديث: نوفمبر 2026 — مسودة تُراجع قانونياً قبل الإطلاق</p>
+        <div className="space-y-6">
+          {doc.sections.map(([h, t], i) => (
+            <section key={h}>
+              <h2 className="text-lg font-semibold text-[#0E1A1B] mb-1">{`${(i + 1).toLocaleString("ar-EG-u-nu-latn")}. ${h}`}</h2>
+              <p className="text-sm leading-7 text-[#4A5757]">{t}</p>
+            </section>
+          ))}
+        </div>
+      </article>
+    </main>
+  );
+}

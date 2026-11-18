@@ -1,0 +1,865 @@
+import Photo from "./Photo";
+import { currencySymbol, E } from "../i18n";
+import { D, DF, pct } from "../data/dataI18n";
+import { tr_ as T } from "../i18n";
+import { useState, useMemo, useEffect } from "react";
+import ProgressBar from "./ProgressBar";
+import ShareMenu, { projectShare } from "./ShareMenu";
+import { whatsappLink } from "../lib/share";
+import {
+  FolderKanban,
+  Plus,
+  Clock,
+  Calendar,
+  User,
+  Building2,
+  CheckCircle2,
+  AlertTriangle,
+  ChevronLeft,
+  X,
+  Search,
+  Filter,
+  Sparkles,
+  RotateCcw,
+  TrendingUp,
+  Layers,
+  MapPin,
+  Check,
+  ArrowUpRight,
+  Sliders,
+  DollarSign,
+} from "lucide-react";
+import {
+  PHASES as SEED_PHASES,
+  PEOPLE,
+  formatEGP,
+} from "../data/seed";
+
+// Standard Phases in Construction & Interior Design
+const PHASES = SEED_PHASES;
+
+// Available Engineers for Assignment
+const ENGINEERS_LIST = PEOPLE.filter((p) => p.role !== "مدير").map(
+  (p) => p.displayName
+);
+
+import { projectsStore, INITIAL_PROJECTS, parseAmount } from "../data/projects";
+import SpecFields from "./SpecFields";
+import { checkLimit } from "../lib/upgrade";
+import { teamRepo, loadTeam, MEMBER_ROLES } from "../data/team";
+import { displayId, genPassword, toAuthEmail } from "../lib/identity";
+
+function ProjectsManagement({ actionItems, setActionItems, setSelectedItem }) {
+  const [projects, setProjects] = projectsStore.use();
+  const [isAddProjectOpen, setIsAddProjectOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("الكل");
+  const [toastMessage, setToastMessage] = useState(null);
+  useEffect(() => {
+    const h = (e) => { setToastMessage(String(e.detail)); setTimeout(() => setToastMessage(null), 5000); };
+    window.addEventListener("miyar:error", h);
+    return () => window.removeEventListener("miyar:error", h);
+  }, []);
+
+  // Project Details Modal State
+  const [selectedProject, setSelectedProject] = useState(null);
+
+  // Edit Timeline Modal State
+  const [editingTimelineProject, setEditingTimelineProject] = useState(null);
+  const [timelineProgress, setTimelineProgress] = useState(0);
+  const [timelinePhase, setTimelinePhase] = useState("تصميم");
+  const [timelineStatus, setTimelineStatus] = useState("جاري العمل");
+
+  // New Project Form State
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newClientName, setNewClientName] = useState("");
+  const [newDeadline, setNewDeadline] = useState("");
+  const isLive = projectsStore.isLive;
+  const members = teamRepo.use();
+  useEffect(() => { if (isLive) loadTeam(); }, [isLive]);
+  const people = useMemo(() => (isLive
+    ? members.map((m) => ({ key: m.id || `p:${m.email}`, id: m.id || null, label: m.name || displayId(m.email), pending: m.pending }))
+    : ENGINEERS_LIST.map((n) => ({ key: n, id: null, label: n }))), [isLive, members]);
+  const [spec, setSpec] = useState({ area: "", rooms: "", baths: "", height: "2.8", type: "", finish: "mid" });
+  const [newEngineer, setNewEngineer] = useState(isLive ? "" : ENGINEERS_LIST[0]);
+  const [addPerson, setAddPerson] = useState(false);
+  const [pf, setPf] = useState({ name: "", login: "", role: "site_engineer" });
+  const [made, setMade] = useState("");
+  const invitePerson = async () => {
+    if (!pf.name.trim() || !pf.login.trim()) return;
+    const password = genPassword();
+    try {
+      const id = await teamRepo.create({ ...pf, password });
+      setNewEngineer(id);
+      setMade(`${displayId(toAuthEmail(pf.login))} / ${password}`);
+      setPf({ ...pf, name: "", login: "" }); setAddPerson(false);
+    } catch (err) { window.dispatchEvent(new CustomEvent("miyar:error", { detail: err.message === "INVALID_ID" ? T("login.badId") : err.message })); }
+  };
+
+  const [newBudget, setNewBudget] = useState("");
+  const [newLocation, setNewLocation] = useState("");
+
+  // Quick KPI Stats
+  const stats = useMemo(() => {
+    const total = projects.length;
+    const delayed = projects.filter((p) => p.status === "متأخر").length;
+    const onTrack = projects.filter((p) => p.status === "جاري العمل" || p.status === "متقدم عن الجدول").length;
+    const avgProgress =
+      total > 0
+        ? Math.round(projects.reduce((acc, p) => acc + p.progress, 0) / total)
+        : 0;
+    return { total, delayed, onTrack, avgProgress };
+  }, [projects]);
+
+  // Filtered Projects
+  const filteredProjects = useMemo(() => {
+    return projects.filter((p) => {
+      const matchesSearch =
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.client.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.engineer.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (p.location && p.location.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesStatus = statusFilter === "الكل" || p.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [projects, searchQuery, statusFilter]);
+
+  // Handle Create New Project Submit
+  const handleCreateProjectSubmit = (e) => {
+    e.preventDefault();
+    if (!newProjectName.trim() || !newClientName.trim()) return;
+
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    const who = people.find((x) => x.key === newEngineer);
+    if (isLive && !who) return;
+    const newProject = {
+      id: Date.now(),
+      name: newProjectName.trim(),
+      client: newClientName.trim(),
+      engineer: isLive ? who.label : newEngineer,
+      engineerId: isLive ? who.id : null,
+      progress: 0,
+      status: "جاري العمل",
+      phase: "تصميم",
+      startDate: todayStr,
+      deadline: newDeadline || "2027-03-31",
+      budget: newBudget.trim() ? `${newBudget.trim()} ${currencySymbol()}` : `${formatEGP(3500000)}`,
+      contractValue: newBudget.trim() ? parseAmount(newBudget) : 3500000,
+      location: newLocation.trim() || D("القاهرة الجديدة"),
+      spec: isLive ? spec : undefined,
+      image:
+        "/landing/kitchen.webp",
+    };
+
+    setProjects((prev) => [newProject, ...prev]);
+    setIsAddProjectOpen(false);
+
+    // Reset Form
+    setNewProjectName("");
+    setNewClientName("");
+    setNewDeadline("");
+    setNewEngineer(isLive ? "" : ENGINEERS_LIST[0]);
+    setNewBudget("");
+    setNewLocation("");
+
+    // Toast
+    setToastMessage(DF("تم إنشاء مشروع \"{0}\" بنجاح وإسناده لـ {1}", newProject.name, newProject.engineer));
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const [notifyClient, setNotifyClient] = useState(null);
+
+  // Open Edit Timeline Modal
+  const handleOpenTimelineModal = (project) => {
+    setEditingTimelineProject(project);
+    setTimelineProgress(project.progress);
+    setTimelinePhase(project.phase);
+    setTimelineStatus(project.status);
+  };
+
+  // Save Timeline Changes
+  const handleSaveTimeline = (e) => {
+    e.preventDefault();
+    if (!editingTimelineProject) return;
+
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === editingTimelineProject.id
+          ? {
+              ...p,
+              progress: parseInt(timelineProgress, 10) || 0,
+              phase: timelinePhase,
+              status: timelineStatus,
+            }
+          : p
+      )
+    );
+
+    const updated = { ...editingTimelineProject, progress: parseInt(timelineProgress, 10) || 0, phase: timelinePhase, status: timelineStatus };
+    setNotifyClient(projectShare(updated, { kind: "stage" }));
+    setTimeout(() => setNotifyClient(null), 12000);
+    setToastMessage(DF("تم تحديث الجدول الزمني ونسبة الإنجاز لمشروع \"{0}\"", editingTimelineProject.name));
+    setEditingTimelineProject(null);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // Reset to default sample projects
+  const handleResetProjects = () => {
+    setProjects(INITIAL_PROJECTS);
+    setToastMessage(D("تمت استعادة المشروعات التجريبية الافتراضية"));
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  return (
+    <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-transparent pb-24 font-ibm w-full max-w-full overflow-x-hidden">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-8 end-6 z-50 flex items-center gap-3 px-4 py-3 bg-[#2E6F73] text-white rounded-xl shadow-xl border border-white/10 animate-in fade-in slide-in-from-bottom-3 duration-200">
+          <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-600 flex items-center justify-center shrink-0">
+            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+          </div>
+          <p className="text-xs font-bold leading-relaxed">{toastMessage}</p>
+        </div>
+      )}
+
+      {notifyClient && (
+        <div className="no-print fixed bottom-24 end-6 z-50 flex items-center gap-3 px-4 py-3 bg-white text-[#0E1A1B] rounded-xl shadow-xl border border-[#E4DDCE]">
+          <p className="text-xs font-bold">{T("notify.title")}</p>
+          <a
+            href={whatsappLink(notifyClient.text)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setNotifyClient(null)}
+            className="rounded-full bg-emerald-600 text-white text-xs font-bold px-3 py-1.5"
+          >
+            {T("notify.send")}
+          </a>
+        </div>
+      )}
+
+      {/* Header & Quick Action */}
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2.5 flex-wrap mb-1">
+            <h1 className="text-2xl md:text-3xl font-semibold text-[#0E1A1B] tracking-tight flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-lg bg-[#EFE9DC] border border-[#E4DDCE] flex items-center justify-center text-[#0E1A1B]">
+                <FolderKanban className="w-5 h-5" />
+              </div>
+              <span>{T("proj.1")}</span>
+            </h1>
+            <span className="text-xs font-bold px-3 py-1 rounded-full bg-[#EFE9DC] text-[#0E1A1B] border border-[#E4DDCE]">
+              {T("proj.2", { v0: projects.length })}
+            </span>
+          </div>
+          <p className="text-xs md:text-sm text-[#4A5757]">
+            {T("proj.3")}
+          </p>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {!projectsStore.isLive && <button
+            onClick={handleResetProjects}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-[#4A5757] bg-white border border-[#E4DDCE] hover:bg-[#F6F3EC] transition-colors shadow-2xs cursor-pointer"
+            title={T("proj.4")}
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>{T("proj.5")}</span>
+          </button>}
+
+          {/* Requirement 2: Primary Button "+ إضافة مشروع جديد" */}
+          <button
+            onClick={async () => { if (await checkLimit("projects", projects.filter((x) => x.status !== "completed").length)) setIsAddProjectOpen(true); }}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs md:text-sm font-bold text-white bg-[#2E6F73] hover:bg-[#2E6F73] transition-colors shadow-sm cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>{T("proj.6")}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* KPI Stats Bar */}
+      <div className="stat-grid grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
+        <div className="bg-white rounded-lg p-3.5 sm:p-5 border border-[#E4DDCE] shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
+          <span className="text-[11px] font-bold text-[#4A5757] block mb-1">{T("proj.7")}</span>
+          <div className="flex items-baseline justify-between">
+            <span className="text-xl md:text-2xl font-semibold text-[#0E1A1B]">{stats.total}</span>
+            <span className="text-[11px] font-bold text-[#4A5757] bg-[#EFE9DC] px-2 py-0.5 rounded-md border border-[#E4DDCE]">
+              {T("proj.8")}
+            </span>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg p-3.5 sm:p-5 border border-[#E4DDCE] shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
+          <span className="text-[11px] font-bold text-[#4A5757] block mb-1">{T("proj.9")}</span>
+          <div className="flex items-baseline justify-between">
+            <span className="text-xl md:text-2xl font-semibold text-emerald-700">{stats.onTrack}</span>
+            <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+              {T("proj.10")}
+            </span>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg p-3.5 sm:p-5 border border-[#E4DDCE] shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
+          <span className="text-[11px] font-bold text-[#4A5757] block mb-1">{T("proj.11")}</span>
+          <div className="flex items-baseline justify-between">
+            <span className="text-xl md:text-2xl font-semibold text-rose-700">{stats.delayed}</span>
+            <span className="text-[11px] font-bold text-rose-800 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+              {T("proj.12")}
+            </span>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg p-3.5 sm:p-5 border border-[#E4DDCE] shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
+          <span className="text-[11px] font-bold text-[#4A5757] block mb-1">{T("proj.13")}</span>
+          <div className="flex items-baseline justify-between">
+            <span className="text-xl md:text-2xl font-semibold text-[#0E1A1B]">{pct(stats.avgProgress)}</span>
+            <span className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+              {T("proj.14")}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Filter and Search Bar */}
+      <div className="bg-white rounded-lg border border-[#E4DDCE] p-3.5 mb-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+        {/* Search Input */}
+        <div className="relative flex-1 max-w-md">
+          <Search className="w-4 h-4 text-[#4A5757] absolute start-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            placeholder={T("proj.15")}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full ps-10 pe-4 py-2 rounded-lg border border-[#E4DDCE] bg-[#F6F3EC] text-xs md:text-sm font-semibold text-[#0E1A1B] placeholder-[#4A5757]/50 focus:outline-none focus:ring-1 focus:ring-1 focus:ring-[#2E6F73] focus:border-[#2E6F73] transition-all"
+          />
+        </div>
+
+        {/* Status Filters */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+          {["الكل", "جاري العمل", "متقدم عن الجدول", "متأخر"].map((status) => (
+            <button
+              key={status}
+              onClick={() => setStatusFilter(status)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer active:scale-95 ${
+                statusFilter === status
+                  ? "bg-[#2E6F73] text-white shadow-sm"
+                  : "bg-[#EFE9DC] text-[#0E1A1B] hover:bg-[#E4DDCE]"
+              }`}
+            >
+              {E(status)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Requirement 3: Projects Grid Layout (Cards in grid-cols-1 md:grid-cols-2) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {filteredProjects.map((project, pi) => {
+          const isDelayed = project.status === "متأخر";
+          const isAhead = project.status === "متقدم عن الجدول";
+
+          // Status Badge Styling
+          let statusBadgeClass = "bg-emerald-50 text-emerald-800 border-emerald-200";
+          let statusDotClass = "bg-emerald-600";
+          if (isDelayed) {
+            statusBadgeClass = "bg-rose-50 text-rose-800 border-rose-200 animate-pulse";
+            statusDotClass = "bg-rose-600";
+          } else if (isAhead) {
+            statusBadgeClass = "bg-amber-50 text-amber-800 border-amber-200";
+            statusDotClass = "bg-amber-700";
+          }
+
+          // Active Phase Index
+          const currentPhaseIndex = PHASES.indexOf(project.phase);
+
+          return (
+            <div
+              key={project.id}
+              className="bg-white rounded-[28px] border border-[#E4DDCE] shadow-[0_4px_24px_rgba(0,0,0,0.02)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.05)] hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between overflow-hidden group"
+            >
+              <img src={`/landing/${["villa", "living", "kitchen", "office", "site"][pi % 5]}-s.webp`} alt="" loading="lazy" className="w-full h-36 sm:h-44 object-cover" />
+              {/* Card Header: Project Name & Client Name + Status Badge */}
+              <div className="p-5 md:p-6 pb-4 border-b border-[#ECE5D6] flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-bold text-[#4A5757] bg-[#EFE9DC] px-2 py-0.5 rounded-md border border-[#E4DDCE]">
+                      {T("proj.16")}
+                    </span>
+                  </div>
+                  <h3 className="text-base md:text-lg font-semibold text-[#0E1A1B] truncate tracking-tight group-hover:text-amber-800 transition-colors">
+                    {project.name}
+                  </h3>
+                  <p className="text-xs text-[#4A5757] mt-0.5 flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5 text-[#4A5757]" />
+                    <span>{T("proj.17")} <strong className="text-[#4A5757] font-bold">{project.client}</strong></span>
+                  </p>
+                </div>
+
+                {/* Status Badge + share */}
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                <span
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shrink-0 ${statusBadgeClass}`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${statusDotClass}`} />
+                  <span>{E(project.status)}</span>
+                </span>
+                <ShareMenu project={project} />
+                </div>
+              </div>
+
+              {/* Card Body */}
+              <div className="p-5 md:p-6 space-y-5 flex-1">
+                {/* 1. Progress Bar */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-[#0E1A1B] flex items-center gap-1">
+                      <TrendingUp className="w-3.5 h-3.5 text-[#0E1A1B]" />
+                      <span>{T("proj.18")}</span>
+                    </span>
+                    <span className="text-xs font-bold text-[#0E1A1B] tracking-wide font-mono">
+                      {pct(project.progress)}
+                    </span>
+                  </div>
+
+                  <ProgressBar
+                    value={project.progress}
+                    isWarning={isDelayed}
+                  />
+                </div>
+
+                {/* 2. Mini Timeline Tracker showing 4 phases: [تصميم -> تأسيس -> تشطيب -> تسليم] */}
+                <div className="bg-[#F6F3EC] rounded-xl p-3.5 border border-[#E4DDCE]">
+                  <span className="text-[11px] font-bold text-[#4A5757] block mb-2.5">
+                    {T("proj.19")}
+                  </span>
+
+                  <div className="flex items-center justify-between relative">
+                    {/* Connecting line */}
+                    <div className="absolute top-1/2 start-4 end-4 -translate-y-1/2 h-0.5 bg-[#E4DDCE] z-0" />
+
+                    {PHASES.map((phase, idx) => {
+                      const isCompleted = idx < currentPhaseIndex;
+                      const isCurrent = idx === currentPhaseIndex;
+
+                      return (
+                        <div
+                          key={phase}
+                          className="relative z-10 flex flex-col items-center gap-1"
+                        >
+                          <div
+                            className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold transition-all ${
+                              isCompleted
+                                ? "bg-[#2E6F73] text-white shadow-xs"
+                                : isCurrent
+                                ? "bg-[#2E6F73] text-white ring-4 ring-[#2E6F73]/10 shadow-xs"
+                                : "bg-white border-2 border-[#E4DDCE] text-[#4A5757]"
+                            }`}
+                          >
+                            {isCompleted ? (
+                              <Check className="w-3.5 h-3.5" />
+                            ) : (
+                              idx + 1
+                            )}
+                          </div>
+                          <span
+                            className={`text-[10px] font-bold ${
+                              isCurrent
+                                ? "text-[#0E1A1B] font-semibold scale-105"
+                                : isCompleted
+                                ? "text-[#0E1A1B]"
+                                : "text-[#4A5757]"
+                            }`}
+                          >
+                            {D(phase)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 3. Details Row: Assigned Engineer, Start Date, and Deadline with clock icon */}
+                <div className="grid grid-cols-2 gap-2.5 pt-1 text-xs text-[#4A5757]">
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-[#F6F3EC] border border-[#E4DDCE]/60">
+                    <div className="w-7 h-7 rounded-lg bg-[#EFE9DC] text-[#4A5757] flex items-center justify-center shrink-0 border border-[#E4DDCE]">
+                      <User className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[10px] text-[#4A5757] block leading-none">{T("proj.20")}</span>
+                      <span className="font-bold text-[#0E1A1B] text-[11px] truncate block mt-0.5">
+                        {project.engineer}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-[#F6F3EC] border border-[#E4DDCE]/60">
+                    <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-800 flex items-center justify-center shrink-0 border border-amber-200">
+                      <Clock className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[10px] text-[#4A5757] block leading-none">{T("proj.21")}</span>
+                      <span className="font-bold text-[#0E1A1B] text-[11px] truncate block mt-0.5 font-mono">
+                        {project.deadline}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card Footer (Actions): Two outline buttons */}
+              <div className="p-4 md:px-6 bg-[#F6F3EC] border-t border-[#ECE5D6] flex items-center gap-2.5">
+                {/* Button 1: تفاصيل المشروع */}
+                <button
+                  onClick={() => setSelectedProject(project)}
+                  className="flex-1 py-2 px-3 rounded-lg border border-[#E4DDCE] bg-white hover:bg-[#F6F3EC] text-[#4A5757] text-xs font-bold transition-all shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Building2 className="w-3.5 h-3.5 text-[#4A5757]" />
+                  <span>{T("proj.22")}</span>
+                </button>
+
+                {/* Button 2: تعديل الجدول الزمني */}
+                <button
+                  onClick={() => handleOpenTimelineModal(project)}
+                  className="flex-1 py-2 px-3 rounded-lg border border-[#D6CCB8] bg-[#EFE9DC] hover:bg-[#E4DDCE] text-[#0E1A1B] text-xs font-bold transition-all shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Sliders className="w-3.5 h-3.5 text-[#0E1A1B]" />
+                  <span>{T("proj.23")}</span>
+                </button>
+              </div>
+            </div>
+          );
+        })}
+
+        {filteredProjects.length === 0 && (
+          <div className="col-span-full py-16 text-center bg-white rounded-lg border border-[#E4DDCE] p-8">
+            <FolderKanban className="w-10 h-10 mx-auto mb-2 text-[#64706F]" />
+            <h4 className="text-base font-bold text-[#4A5757]">{T("proj.24")}</h4>
+            <p className="text-xs text-[#4A5757] mt-1 max-w-sm mx-auto">
+              {T("proj.25")}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Requirement 4: "Create New Project" Modal */}
+      {isAddProjectOpen && (
+        <div className="fixed inset-0 z-50 bg-[#0F3D3E]/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-lg shadow-2xl border border-[#E4DDCE] max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 md:p-8 text-start animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-[#ECE5D6]">
+              <h3 className="text-lg font-semibold text-[#0E1A1B] flex items-center gap-2">
+                <Plus className="w-5 h-5 text-[#0E1A1B]" />
+                <span>{T("proj.26")}</span>
+              </h3>
+              <button
+                onClick={() => setIsAddProjectOpen(false)}
+                className="p-1.5 rounded-lg text-[#4A5757] hover:text-[#0E1A1B] hover:bg-[#EFE9DC] cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleCreateProjectSubmit} className="space-y-4 mt-4">
+              {/* Field 1: Project Name */}
+              <div>
+                <label className="block text-xs font-bold text-[#4A5757] mb-1.5">
+                  اسم المشروع <span className="text-rose-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder={T("proj.27")}
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-lg border border-[#E4DDCE] text-xs md:text-sm font-semibold text-[#0E1A1B] placeholder-[#4A5757]/50 focus:outline-none focus:ring-1 focus:ring-1 focus:ring-[#2E6F73] focus:border-[#2E6F73] transition-all"
+                />
+              </div>
+
+              {/* Field 2: Client Name */}
+              <div>
+                <label className="block text-xs font-bold text-[#4A5757] mb-1.5">
+                  اسم العميل <span className="text-rose-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder={T("proj.28")}
+                  value={newClientName}
+                  onChange={(e) => setNewClientName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-lg border border-[#E4DDCE] text-xs md:text-sm font-semibold text-[#0E1A1B] placeholder-[#4A5757]/50 focus:outline-none focus:ring-1 focus:ring-1 focus:ring-[#2E6F73] focus:border-[#2E6F73] transition-all"
+                />
+              </div>
+
+              {/* Field 3: Expected Deadline & Location */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-[#4A5757] mb-1.5">
+                    تاريخ التسليم المتوقع <span className="text-rose-600">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={newDeadline}
+                    onChange={(e) => setNewDeadline(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-lg border border-[#E4DDCE] text-xs font-semibold text-[#0E1A1B] focus:outline-none focus:ring-1 focus:ring-1 focus:ring-[#2E6F73] focus:border-[#2E6F73] transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#4A5757] mb-1.5">
+                    {T("proj.29")}
+                  </label>
+                  <input
+                    type="text"
+                    placeholder={T("proj.30")}
+                    value={newLocation}
+                    onChange={(e) => setNewLocation(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-lg border border-[#E4DDCE] text-xs font-semibold text-[#0E1A1B] focus:outline-none focus:ring-1 focus:ring-1 focus:ring-[#2E6F73] focus:border-[#2E6F73] transition-all"
+                  />
+                </div>
+              </div>
+
+              {isLive && (
+                <div>
+                  <label className="block text-xs font-bold text-[#4A5757] mb-1.5">{T("spec.title")}</label>
+                  <SpecFields spec={spec} onChange={setSpec} />
+                </div>
+              )}
+
+              {/* Field 4: Assign Engineer & Estimated Budget */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-[#4A5757] mb-1.5">
+                    إسناد إلى مهندس <span className="text-rose-600">*</span>
+                  </label>
+                  <select
+                    required
+                    value={newEngineer}
+                    onChange={(e) => setNewEngineer(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-lg border border-[#E4DDCE] text-xs font-bold text-[#0E1A1B] bg-white focus:outline-none focus:ring-1 focus:ring-[#2E6F73] focus:border-[#2E6F73]"
+                  >
+                    {isLive && <option value="">{T("pm.eng.pick")}</option>}
+                    {people.map((x) => (
+                      <option key={x.key} value={x.key}>{x.label}{x.pending ? ` (${T("live.pending")})` : ""}</option>
+                    ))}
+                  </select>
+                  {made && <p role="status" className="text-[11px] font-bold text-[#0E1A1B] mt-1.5 break-all">{T("team.created")} <span dir="ltr">{made}</span></p>}
+                  {isLive && people.length === 0 && <p className="text-[11px] text-[#64706F] mt-1.5">{T("pm.eng.none")}</p>}
+                  {isLive && (
+                    <div className="mt-2">
+                      {!addPerson ? (
+                        <button type="button" onClick={() => setAddPerson(true)} className="text-[11px] font-bold text-[#2E6F73] underline underline-offset-2 cursor-pointer">+ {T("pm.eng.add")}</button>
+                      ) : (
+                        <div className="grid gap-1.5">
+                          <input value={pf.name} onChange={(e) => setPf({ ...pf, name: e.target.value })} placeholder={T("login.name")} className="px-2.5 py-1.5 rounded-lg border border-[#E4DDCE] text-xs" />
+                          <input type="text" autoCapitalize="none" dir="ltr" placeholder={T("pm.eng.email")} value={pf.login} onChange={(e) => setPf({ ...pf, login: e.target.value })} className="px-2.5 py-1.5 rounded-lg border border-[#E4DDCE] text-xs" />
+                          <div className="flex gap-1.5">
+                            <select value={pf.role} onChange={(e) => setPf({ ...pf, role: e.target.value })} className="flex-1 px-2 py-1.5 rounded-lg border border-[#E4DDCE] text-xs bg-white">
+                              {MEMBER_ROLES.map((r) => <option key={r} value={r}>{T(`team.r.${r}`)}</option>)}
+                            </select>
+                            <button type="button" onClick={invitePerson} className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[#2E6F73] cursor-pointer">{T("pm.eng.send")}</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#4A5757] mb-1.5">
+                    {T("proj.31", { v0: currencySymbol() })}
+                  </label>
+                  <input
+                    type="text"
+                    placeholder={T("proj.32")}
+                    value={newBudget}
+                    onChange={(e) => setNewBudget(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-lg border border-[#E4DDCE] text-xs font-semibold text-[#0E1A1B] focus:outline-none focus:ring-1 focus:ring-1 focus:ring-[#2E6F73] focus:border-[#2E6F73] transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 bg-amber-50/60 rounded-lg border border-amber-200 text-xs text-amber-900">
+                <p>
+                  {D("يبدأ المشروع تلقائياً بنسبة إنجاز 0٪ في مرحلة")} <strong>{D("التصميم")}</strong>{D("، وسيتلقى المهندس والعميل إشعاراً فورياً.")}
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-[#ECE5D6]">
+                <button
+                  type="button"
+                  onClick={() => setIsAddProjectOpen(false)}
+                  className="px-4 py-2.5 rounded-lg text-xs font-bold text-[#4A5757] hover:bg-[#EFE9DC] transition-colors cursor-pointer"
+                >
+                  {T("proj.34")}
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg bg-[#2E6F73] hover:bg-[#2E6F73] hover:bg-[#2E6F73] text-white font-bold text-xs md:text-sm transition-colors cursor-pointer shadow-sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>{T("proj.35")}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Timeline Modal */}
+      {editingTimelineProject && (
+        <div className="fixed inset-0 z-50 bg-[#0F3D3E]/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-lg shadow-2xl border border-[#E4DDCE] max-w-md w-full p-6 md:p-8 text-start animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-4 border-b border-[#ECE5D6]">
+              <h3 className="text-base font-semibold text-[#0E1A1B] flex items-center gap-2">
+                <Sliders className="w-5 h-5 text-[#0E1A1B]" />
+                <span>{T("proj.36", { v0: editingTimelineProject.name })}</span>
+              </h3>
+              <button
+                onClick={() => setEditingTimelineProject(null)}
+                className="p-1.5 rounded-lg text-[#4A5757] hover:text-[#0E1A1B] hover:bg-[#EFE9DC] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveTimeline} className="space-y-4 mt-4">
+              <div>
+                <label className="block text-xs font-bold text-[#4A5757] mb-1.5">
+                  {T("proj.37")}
+                </label>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {PHASES.map((p) => (
+                    <button
+                      type="button"
+                      key={p}
+                      onClick={() => setTimelinePhase(p)}
+                      className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        timelinePhase === p
+                          ? "bg-[#2E6F73] text-white shadow-sm"
+                          : "bg-[#EFE9DC] text-[#0E1A1B] hover:bg-[#E4DDCE]"
+                      }`}
+                    >
+                      {D(p)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-[#4A5757]">{T("proj.18")}</label>
+                  <span className="text-xs font-semibold text-[#0E1A1B]">{pct(timelineProgress)}</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={timelineProgress}
+                  onChange={(e) => setTimelineProgress(e.target.value)}
+                  className="w-full accent-zinc-900 cursor-pointer"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#4A5757] mb-1.5">{T("proj.38")}</label>
+                <select
+                  value={timelineStatus}
+                  onChange={(e) => setTimelineStatus(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-[#E4DDCE] text-xs font-bold text-[#0E1A1B] bg-white"
+                >
+                  <option value="جاري العمل">{T("proj.39")}</option>
+                  <option value="متقدم عن الجدول">{T("proj.40")}</option>
+                  <option value="متأخر">{T("proj.41")}</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-[#ECE5D6]">
+                <button
+                  type="button"
+                  onClick={() => setEditingTimelineProject(null)}
+                  className="px-4 py-2 rounded-lg text-xs font-bold text-[#4A5757] hover:bg-[#EFE9DC]"
+                >
+                  {T("proj.34")}
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-lg bg-[#2E6F73] hover:bg-[#2E6F73] hover:bg-[#2E6F73] text-white font-bold text-xs shadow-sm"
+                >
+                  {T("proj.42")}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Project Details Modal */}
+      {selectedProject && (
+        <div className="fixed inset-0 z-50 bg-[#0F3D3E]/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-lg shadow-2xl border border-[#E4DDCE] max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 md:p-8 text-start animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-4 border-b border-[#ECE5D6]">
+              <div>
+                <h3 className="text-lg font-semibold text-[#0E1A1B]">{selectedProject.name}</h3>
+                <p className="text-xs text-[#4A5757] mt-0.5">{selectedProject.location}</p>
+              </div>
+              <button
+                onClick={() => setSelectedProject(null)}
+                className="p-1.5 rounded-lg text-[#4A5757] hover:text-[#0E1A1B] hover:bg-[#EFE9DC] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="my-4 rounded-lg overflow-hidden h-44 relative">
+              <Photo src={selectedProject.image} alt={selectedProject.name} label={selectedProject.name} className="w-full h-full object-cover" />
+              <div className="absolute top-3 start-3">
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#0F3D3E]/70 text-white backdrop-blur-xs">
+                  {T("proj.43", { v0: selectedProject.phase })}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="flex justify-between py-2 border-b border-[#ECE5D6]">
+                <span className="text-[#4A5757]">{T("proj.17")}</span>
+                <span className="font-bold text-[#0E1A1B]">{selectedProject.client}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-[#ECE5D6]">
+                <span className="text-[#4A5757]">{T("proj.44")}</span>
+                <span className="font-bold text-[#0E1A1B]">{selectedProject.engineer}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-[#ECE5D6]">
+                <span className="text-[#4A5757]">{T("proj.45")}</span>
+                <span className="font-semibold text-[#0E1A1B]">{selectedProject.budget}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-[#ECE5D6]">
+                <span className="text-[#4A5757]">{T("proj.46")}</span>
+                <span className="font-mono text-[#4A5757]">{selectedProject.startDate}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-[#ECE5D6]">
+                <span className="text-[#4A5757]">{T("proj.47")}</span>
+                <span className="font-mono text-rose-700 font-bold">{selectedProject.deadline}</span>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setSelectedProject(null)}
+                className="w-full py-2.5 rounded-lg bg-[#2E6F73] hover:bg-[#2E6F73] text-white text-xs font-bold hover:bg-[#2E6F73] transition-colors shadow-sm"
+              >
+                {T("proj.48")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}
+
+export default ProjectsManagement;

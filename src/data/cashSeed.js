@@ -1,0 +1,68 @@
+import { ENGINEER_CASH, personById, projectById, initialsOf } from "./seed";
+
+// Initial Engineers Petty Cash State (single source: src/data/seed.js)
+export const INITIAL_ENGINEERS_CASH = ENGINEER_CASH.map((c) => {
+  const person = personById(c.engineerId);
+  return {
+    id: c.id,
+    name: person.displayName,
+    site: projectById(c.projectId).name,
+    totalGiven: c.totalGiven,
+    spent: c.spent,
+    avatar: initialsOf(person.name),
+    color: person.color,
+  };
+});
+
+// Initial Pending Expenses State
+export const INITIAL_PENDING_EXPENSES = [
+  {
+    id: 101,
+    engId: 1,
+    engName: "م. أحمد الشناوي (موقع زايد)",
+    description: "تشوين أسمنت ورمل سريع لعزل البدروم",
+    amount: 1500,
+    date: "اليوم، 11:30 ص",
+    category: "تشوين ونولون",
+    receiptNumber: "REC-9821",
+    invoiceImg:
+      "/landing/site.webp",
+  },
+  {
+    id: 102,
+    engId: 2,
+    engName: "م. كريم مصطفى (فيلا الياسمين)",
+    description: "شراء وصلات سباكة نحاس إضافية وغراء عزل",
+    amount: 2850,
+    date: "اليوم، 09:45 ص",
+    category: "خامات سباكة",
+    receiptNumber: "REC-9822",
+    invoiceImg:
+      "/landing/site.webp",
+  },
+  {
+    id: 103,
+    engId: 3,
+    engName: "م. عمر عادل (نيو جيزة)",
+    description: "يومية عمالة طارئة لتنزيل ألواح الجبسوم بورد",
+    amount: 1200,
+    date: "أمس، 05:15 م",
+    category: "مصاريف عمالة",
+    receiptNumber: "REC-9823",
+    invoiceImg:
+      "/landing/site.webp",
+  },
+  {
+    id: 104,
+    engId: 2,
+    engName: "م. كريم مصطفى (فيلا الياسمين)",
+    description: "إكراميات ونولون نقل عينات رخام من شق التعبان",
+    amount: 650,
+    date: "أمس، 02:00 م",
+    category: "نقل ونثريات",
+    receiptNumber: "REC-9824",
+    invoiceImg:
+      "/landing/site.webp",
+  },
+];
+

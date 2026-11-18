@@ -1,0 +1,103 @@
+// Default architectural / finishing items. `terms` = quantity formula: sum of coef x basis (see src/lib/autoBoq.js BASES).
+// Offices can edit all of this (Supabase boq_library); these are the fallback/seed.
+const ARCH_ITEMS = [
+  { cat: "أعمال الهدم والتجهيز", name: "هدم حوائط طوب", unit: "م²", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال الهدم والتجهيز", name: "فك أرضيات قديمة", unit: "م²", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال الهدم والتجهيز", name: "فك أسقف / كرانيش", unit: "م²", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال الهدم والتجهيز", name: "نقل مخلفات", unit: "م³", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال الهدم والتجهيز", name: "حماية أرضيات وأبواب أثناء التنفيذ", unit: "م²", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال المباني", name: "مباني طوب أحمر سمك 12 سم", unit: "م²", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال المباني", name: "مباني طوب أحمر سمك 25 سم", unit: "م²", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال المباني", name: "مباني بلوك أسمنتي", unit: "م²", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال المباني", name: "حوائط جبس بورد", unit: "م²", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال المباني", name: "عمل عتبات وأساسات خفيفة", unit: "م.ط", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال البياض", name: "بياض حوائط (طرطشة + بطانة + وجه)", unit: "م²", terms: [["walls", 1]], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال البياض", name: "بياض أسقف", unit: "م²", terms: [["area", 1]], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال البياض", name: "بياض بروزات وأركان", unit: "م.ط", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال البياض", name: "معجون وتجهيز دهانات", unit: "م²", terms: [["walls_ceiling", 1]], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال السباكة", name: "نقاط تغذية مياه", unit: "نقطة", terms: [["baths", 4], ["kitchen", 3]], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال السباكة", name: "نقاط صرف", unit: "نقطة", terms: [["baths", 3], ["kitchen", 2]], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال السباكة", name: "تركيب أطقم حمام", unit: "طقم", terms: [["baths", 1]], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال السباكة", name: "تركيب أحواض وخلاطات مطبخ", unit: "عدد", terms: [["kitchen", 1]], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال السباكة", name: "سخانات مياه (تركيب)", unit: "عدد", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال السباكة", name: "اختبار ضغط شبكة المياه", unit: "مقطوعية", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال الكهرباء", name: "نقاط إنارة", unit: "نقطة", terms: [["area", 0.25]], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال الكهرباء", name: "نقاط بريزة / أفياش", unit: "نقطة", terms: [["rooms", 4], ["living", 8], ["office_area", 0.125]], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال الكهرباء", name: "نقاط تكييف", unit: "نقطة", terms: [["rooms", 1], ["fixed", 1]], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال الكهرباء", name: "لوحة توزيع رئيسية / فرعية", unit: "عدد", terms: [["fixed", 1]], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال الكهرباء", name: "نقاط تليفون وداتا وتلفزيون", unit: "نقطة", terms: [["rooms", 1], ["fixed", 1]], finishes: ["eco", "mid", "lux"] },
+  { cat: "أعمال الكهرباء", name: "تأريض وفحص الشبكة", unit: "مقطوعية", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "العزل", name: "عزل مائي للحمامات والمطابخ", unit: "م²", terms: [["baths", 10], ["kitchen", 4]], finishes: ["eco", "mid", "lux"] },
+  { cat: "العزل", name: "عزل أسطح (رول / بيوتمين)", unit: "م²", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "العزل", name: "عزل حراري", unit: "م²", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "العزل", name: "اختبار غمر للعزل", unit: "مقطوعية", terms: [["wet", 1]], finishes: ["eco", "mid", "lux"] },
+  { cat: "الأرضيات والتكسيات", name: "أرضيات سيراميك / بورسلين", unit: "م²", terms: [["area", 1]], finishes: ["eco", "mid"] },
+  { cat: "الأرضيات والتكسيات", name: "أرضيات رخام / جرانيت", unit: "م²", terms: [["area", 1]], finishes: ["lux"] },
+  { cat: "الأرضيات والتكسيات", name: "أرضيات باركيه / فينيل", unit: "م²", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "الأرضيات والتكسيات", name: "تكسية حوائط حمامات", unit: "م²", terms: [["baths", 19]], finishes: ["eco", "mid", "lux"] },
+  { cat: "الأرضيات والتكسيات", name: "تكسية حوائط مطبخ", unit: "م²", terms: [["kitchen", 8]], finishes: ["eco", "mid", "lux"] },
+  { cat: "الأرضيات والتكسيات", name: "وزرات", unit: "م.ط", terms: [["area", 0.9]], finishes: ["eco", "mid", "lux"] },
+  { cat: "الأرضيات والتكسيات", name: "أعتاب وأرفف رخام", unit: "م.ط", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "الأسقف والديكورات الجبسية", name: "أسقف جبس بورد مسطحة", unit: "م²", terms: [["area", 0.6]], finishes: ["mid", "lux"] },
+  { cat: "الأسقف والديكورات الجبسية", name: "أسقف جبس بورد بتصميم وإنارة مخفية", unit: "م²", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "الأسقف والديكورات الجبسية", name: "كرانيش وبيوت ستائر", unit: "م.ط", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "الأسقف والديكورات الجبسية", name: "فتحات صيانة وتكييف", unit: "عدد", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "الدهانات", name: "دهان بلاستيك حوائط (3 أوجه)", unit: "م²", terms: [["dry_walls", 1]], finishes: ["eco", "mid", "lux"] },
+  { cat: "الدهانات", name: "دهان أسقف", unit: "م²", terms: [["paint_ceiling", 1]], finishes: ["eco", "mid", "lux"] },
+  { cat: "الدهانات", name: "دهانات ديكورية / ورق حائط", unit: "م²", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "الدهانات", name: "دهان أخشاب (لاكيه / PU)", unit: "م²", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "النجارة والأبواب", name: "أبواب داخلية خشب", unit: "عدد", terms: [["rooms", 1], ["baths", 1]], finishes: ["eco", "mid", "lux"] },
+  { cat: "النجارة والأبواب", name: "باب مدخل مصفح", unit: "عدد", terms: [["fixed", 1]], finishes: ["eco", "mid", "lux"] },
+  { cat: "النجارة والأبواب", name: "مطبخ (وحدات سفلية وعلوية)", unit: "م.ط", terms: [["kitchen", 5]], finishes: ["eco", "mid", "lux"] },
+  { cat: "النجارة والأبواب", name: "دواليب وغرف ملابس", unit: "م²", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "النجارة والأبواب", name: "وحدات تلفزيون وتجهيزات خشب", unit: "مقطوعية", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "الألوميتال والزجاج", name: "شبابيك ألوميتال", unit: "م²", terms: [["area", 0.12]], finishes: ["eco", "mid", "lux"] },
+  { cat: "الألوميتال والزجاج", name: "أبواب بلكونات ألوميتال", unit: "م²", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "الألوميتال والزجاج", name: "قواطع زجاج (شاور / مكاتب)", unit: "م²", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "الألوميتال والزجاج", name: "مرايا", unit: "م²", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "الألوميتال والزجاج", name: "سلك شبابيك", unit: "م²", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "التكييف", name: "توريد وتركيب تكييف سبلت", unit: "عدد", terms: [["rooms", 1], ["fixed", 1]], finishes: ["eco", "mid", "lux"] },
+  { cat: "التكييف", name: "تمديدات نحاس وصرف تكييف", unit: "م.ط", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "التكييف", name: "مجاري هواء وفتحات تهوية", unit: "م²", terms: [], finishes: ["eco", "mid", "lux"] },
+  { cat: "التنظيف والتسليم", name: "تنظيف نهائي", unit: "م²", terms: [["area", 1]], finishes: ["eco", "mid", "lux"] },
+  { cat: "التنظيف والتسليم", name: "معاينة وقوائم ملاحظات التسليم", unit: "مقطوعية", terms: [["fixed", 1]], finishes: ["eco", "mid", "lux"] },
+  { cat: "التنظيف والتسليم", name: "أعمال صيانة خلال فترة الضمان", unit: "مقطوعية", terms: [], finishes: ["eco", "mid", "lux"] },
+]
+
+const ALL = ["eco", "mid", "lux"];
+const S = (cat, name, unit) => ({ cat, name, unit, terms: [], finishes: ALL, structural: true });
+// Structural works (add-on / Office plan). Quantities are entered manually from the drawings.
+export const STRUCTURAL_ITEMS = [
+  S("أعمال الحفر والردم", "حفر أساسات", "م³"),
+  S("أعمال الحفر والردم", "ردم ودمك بالرمل", "م³"),
+  S("أعمال الحفر والردم", "نقل ناتج الحفر", "م³"),
+  S("الخرسانة العادية", "خرسانة عادية تحت الأساسات", "م³"),
+  S("الخرسانة المسلحة", "خرسانة مسلحة للقواعد", "م³"),
+  S("الخرسانة المسلحة", "خرسانة مسلحة للأعمدة", "م³"),
+  S("الخرسانة المسلحة", "خرسانة مسلحة للكمرات", "م³"),
+  S("الخرسانة المسلحة", "خرسانة مسلحة للأسقف", "م³"),
+  S("الخرسانة المسلحة", "خرسانة مسلحة للسلالم", "م³"),
+  S("حديد التسليح", "حديد تسليح (توريد وتشكيل وتركيب)", "طن"),
+  S("النجارة المسلحة (الشدات)", "شدات خشبية للقواعد والأعمدة", "م²"),
+  S("النجارة المسلحة (الشدات)", "شدات خشبية للكمرات والأسقف", "م²"),
+  S("العزل الإنشائي", "عزل أساسات (بيتومين)", "م²"),
+  S("العزل الإنشائي", "عزل أسطح", "م²"),
+  S("الفحص والاختبار", "اختبار مكعبات خرسانة", "عدد"),
+  S("الفحص والاختبار", "تقرير تربة", "مقطوعية"),
+];
+export const DEFAULT_ITEMS = [...ARCH_ITEMS, ...STRUCTURAL_ITEMS];
+const STRUCT_CATS = new Set(STRUCTURAL_ITEMS.map((i) => i.cat));
+export const isStructuralItem = (i) => !!i.structural || STRUCT_CATS.has(i.cat);
+
+/** Office type: "architectural" | "structural" | "both". Structural items need the structural feature. */
+export const itemsForType = (items, type, allowStructural) => {
+  const t = allowStructural ? type : "architectural";
+  return items.filter((i) => (isStructuralItem(i) ? t !== "architectural" : t !== "structural"));
+};
+
+/** Flat items -> [{ cat, items }] keeping first-seen category order. */
+export const groupItems = (items) => {
+  const m = new Map();
+  for (const it of items) { if (!m.has(it.cat)) m.set(it.cat, []); m.get(it.cat).push(it); }
+  return [...m].map(([cat, list]) => ({ cat, items: list }));
+};

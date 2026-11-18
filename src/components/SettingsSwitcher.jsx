@@ -1,0 +1,116 @@
+import { useEffect, useRef, useState } from "react";
+import { Globe, Check, Sun, Moon, X } from "lucide-react";
+import { useI18n, intlLocale } from "../i18n";
+import { CURRENCIES } from "../lib/currency";
+import { LOCALES } from "../config/locale";
+import { getTheme, setTheme } from "../theme";
+
+const SECTION = "text-[11px] font-semibold uppercase tracking-wide text-[#64706F] mb-2";
+
+/** One compact control: language, currency and theme, as a popover on desktop and a bottom sheet on phones. */
+export default function SettingsSwitcher() {
+  const { t, locale, currency, setLocale, setCurrency } = useI18n();
+  const [open, setOpen] = useState(false);
+  const [theme, setThemeState] = useState(getTheme());
+  const root = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => e.key === "Escape" && setOpen(false);
+    const onDown = (e) => root.current && !root.current.contains(e.target) && setOpen(false);
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onDown);
+    };
+  }, [open]);
+
+  const pickTheme = (n) => { setTheme(n); setThemeState(n); };
+  const curName = (code) => {
+    try { return new Intl.DisplayNames(intlLocale(), { type: "currency" }).of(code); } catch { return code; }
+  };
+  const countryName = (code) => {
+    try { return new Intl.DisplayNames(intlLocale(), { type: "region" }).of(code); } catch { return code; }
+  };
+  const row = (active) =>
+    `w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm text-start btn-press ${
+      active ? "bg-[#2E6F73]/10 text-[#2E6F73] font-semibold" : "text-[#0E1A1B] hover:bg-[#EFE9DC]"
+    }`;
+
+  return (
+    <div className="relative" ref={root}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={t("settings.title")}
+        title={t("settings.title")}
+        className="btn-press inline-flex items-center gap-2 whitespace-nowrap shrink-0 rounded-lg border border-[#E4DDCE] bg-white px-2.5 h-9 text-xs font-semibold text-[#0E1A1B] hover:bg-[#EFE9DC]"
+      >
+        <Globe className="w-4 h-4" aria-hidden="true" />
+        <span className="tabular-nums whitespace-nowrap" dir="ltr">{locale.toUpperCase()} · {currency}</span>
+        {theme === "dark" ? <Moon className="w-3.5 h-3.5 text-[#64706F]" aria-hidden="true" /> : <Sun className="w-3.5 h-3.5 text-[#D98E73]" aria-hidden="true" />}
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-[60] bg-[#0F3D3E]/50 sm:hidden" aria-hidden="true" />
+          <div
+            role="dialog"
+            aria-label={t("settings.title")}
+            className="fixed z-[70] inset-x-0 bottom-0 max-h-[85dvh] overflow-y-auto rounded-t-2xl border-t border-[#E4DDCE] bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:absolute sm:inset-x-auto sm:bottom-auto sm:top-full sm:mt-2 sm:end-0 sm:w-80 sm:max-h-[70vh] sm:rounded-xl sm:border sm:shadow-lg sm:p-3"
+          >
+            <div className="flex items-center justify-between mb-3 sm:hidden">
+              <h2 className="text-base font-bold text-[#0E1A1B]">{t("settings.title")}</h2>
+              <button type="button" onClick={() => setOpen(false)} aria-label={t("settings.close")} className="btn-press p-2 -m-2 rounded-lg text-[#4A5757]">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className={SECTION}>{t("settings.language")}</p>
+            <div className="mb-4 space-y-0.5">
+              {Object.entries(LOCALES).map(([k, v]) => (
+                <button key={k} type="button" onClick={() => setLocale(k)} className={row(k === locale)}>
+                  <span>{v.name}</span>
+                  {k === locale && <Check className="w-4 h-4" aria-hidden="true" />}
+                </button>
+              ))}
+            </div>
+
+            <p className={SECTION}>{t("settings.countryCurrency")}</p>
+            <div className="mb-4 grid grid-cols-2 gap-1.5">
+              {Object.values(CURRENCIES).map((c) => (
+                <button key={c.code} type="button" onClick={() => setCurrency(c.code)} className={`${row(c.code === currency)} !px-2.5`} title={`${countryName(c.country)} · ${curName(c.code)}`}>
+                  <span className="flex flex-col items-start leading-tight min-w-0">
+                    <span className="font-semibold">{countryName(c.country)}</span>
+                    <span className="text-[11px] opacity-70 truncate max-w-full">{curName(c.code)} · <bdi dir="ltr">{c.code}</bdi></span>
+                  </span>
+                  {c.code === currency && <Check className="w-4 h-4 shrink-0" aria-hidden="true" />}
+                </button>
+              ))}
+            </div>
+
+            <p className={SECTION}>{t("settings.theme")}</p>
+            <div className="grid grid-cols-2 gap-1.5 rounded-lg bg-[#EFE9DC] p-1" role="group">
+              {[["light", Sun, t("settings.light")], ["dark", Moon, t("settings.dark")]].map(([k, Icon, label]) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => pickTheme(k)}
+                  aria-pressed={theme === k}
+                  className={`btn-press inline-flex items-center justify-center gap-2 rounded-md py-2 text-sm font-semibold ${
+                    theme === k ? "bg-white text-[#0E1A1B] shadow-sm" : "text-[#4A5757]"
+                  }`}
+                >
+                  <Icon className="w-4 h-4" aria-hidden="true" />{label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
