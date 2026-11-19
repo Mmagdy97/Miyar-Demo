@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Check, Minus, X, XCircle, CheckCircle2 } from "lucide-react";
 import { tr_ as T, useI18n, intlLocale } from "../i18n";
-import { PRICES } from "../lib/pricing";
+import { PRICES, LAUNCH_FACTOR } from "../lib/pricing";
 import { formatMoney } from "../lib/currency";
 import { Bidi, N } from "./Bidi";
 import { useViewCurrency } from "../lib/viewCurrency";
@@ -28,7 +28,8 @@ function Calculator() {
   const perSeat = Math.round(60 * k), perGen = Math.round(10 * k);
   const fmt = (n) => formatMoney(n, cur, intlLocale(), { compact: true });
   const seat = team * perSeat, gen = team * perGen;
-  const miyar = proj <= 1 ? 0 : proj <= 4 ? PRICES[cur][1] : proj <= 8 ? PRICES[cur][2] : null;
+  // Monthly billing: regular price (the launch offer is for 3, 6 and 12-month subscriptions).
+  const miyar = proj <= 1 ? 0 : proj <= 4 ? PRICES[cur][1] * LAUNCH_FACTOR : proj <= 8 ? PRICES[cur][2] * LAUNCH_FACTOR : null;
   const save = miyar == null ? null : (seat - miyar) * 12;
   const rows = [
     ["calc.seat", T("calc.seatd", { p: fmt(perSeat) }), fmt(seat), false],
@@ -44,7 +45,7 @@ function Calculator() {
         {[[T("calc.team"), team, setTeam, 1, 30], [T("calc.proj"), proj, setProj, 1, 15]].map(([l, v, set, mn, mx]) => (
           <label key={l} className="block">
             <span className="flex justify-between text-sm font-semibold"><span>{l}</span><N className="text-[var(--md-primary)]">{v}{v === 15 ? "+" : ""}</N></span>
-            <input type="range" min={mn} max={mx} value={v} onChange={(e) => set(+e.target.value)} aria-label={l} className="mt-2 w-full accent-[#0E8F8C]" />
+            <input type="range" min={mn} max={mx} value={v} onChange={(e) => set(+e.target.value)} aria-label={l} className="mt-2 w-full accent-[#0B7C79]" />
           </label>
         ))}
       </div>
